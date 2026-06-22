@@ -75,6 +75,41 @@ Example cron entry for daily delivery at 08:00:
 0 8 * * * /usr/bin/python3 /path/to/ecrime-api-examples/scripts/ecrime_daily_csv_email.py
 ```
 
+### Regional monthly report generator
+
+[`scripts/generate_regional_monthly_report.py`](scripts/generate_regional_monthly_report.py)
+creates a portable monthly report for one country or a comma-separated group
+of countries.
+
+The generator has no fixed local paths and does not require Chromium. It
+creates:
+
+- `report.html`
+- `report.md`
+- `summary.json`
+- `incidents.csv`
+- three SVG charts
+
+Generate a country report:
+
+```bash
+python3 scripts/generate_regional_monthly_report.py \
+  --month 2026-05 \
+  --country Switzerland
+```
+
+Generate a regional report:
+
+```bash
+python3 scripts/generate_regional_monthly_report.py \
+  --month 2026-05 \
+  --countries "Germany,Austria,Switzerland" \
+  --scope-name "DACH"
+```
+
+Results are written below `output/<scope>/<month>/` unless `--output-dir` is
+specified.
+
 ## Security
 
 - Do not place API keys, SMTP passwords, or exported data in this repository.

@@ -36,6 +36,28 @@ credentials to source control.
 
 ## Available Examples
 
+### Publicly traded company events
+
+[`scripts/list_publicly_traded_events.py`](scripts/list_publicly_traded_events.py)
+lists events where the API response includes a non-empty `stock_symbol`.
+This is useful as a starting point for polling or alerting on publicly traded
+victims.
+
+Look back over the previous 24 hours:
+
+```bash
+python3 scripts/list_publicly_traded_events.py
+```
+
+Write CSV for a fixed window:
+
+```bash
+python3 scripts/list_publicly_traded_events.py \
+  --from 2026-08-01 \
+  --to 2026-08-12 \
+  --format csv > publicly_traded_events.csv
+```
+
 ### Daily CSV report by email
 
 [`scripts/ecrime_daily_csv_email.py`](scripts/ecrime_daily_csv_email.py)

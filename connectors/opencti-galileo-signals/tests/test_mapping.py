@@ -57,3 +57,24 @@ def test_sparse_row_still_maps_to_valid_stix():
 
     objects = json.loads(bundle.serialize())["objects"]
     assert any(obj["type"] == "indicator" for obj in objects)
+
+
+def test_equal_first_and_last_seen_omits_invalid_until():
+    bundle = stix_bundle_from_items(
+        [
+            {
+                "domain": "same-time.example",
+                "first_seen": "2026-09-22T12:00:00Z",
+                "last_seen": "2026-09-22T12:00:00Z",
+            }
+        ],
+        connector_name="Galileo Signals",
+        feed_url="https://galileosignals.com/api/observed_domains",
+        tlp="TLP:AMBER",
+        create_report=False,
+    )
+
+    indicators = [
+        obj for obj in json.loads(bundle.serialize())["objects"] if obj["type"] == "indicator"
+    ]
+    assert "valid_until" not in indicators[0]

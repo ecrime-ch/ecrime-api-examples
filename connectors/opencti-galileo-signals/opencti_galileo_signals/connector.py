@@ -343,28 +343,30 @@ def stix_bundle_from_items(
             allow_custom=True,
             **custom_properties(item),
         )
-        indicator = Indicator(
-            id=make_stix_id("indicator", "domain-name", domain),
-            created_by_ref=source_identity.id,
-            name=f"Galileo observed domain: {domain}",
-            description="Domain observed by Galileo Signals in spam-trap email telemetry.",
-            pattern=f"[domain-name:value = '{domain}']",
-            pattern_type="stix",
-            valid_from=first_seen,
-            valid_until=last_seen,
-            confidence=confidence_score(item.get("confidence")),
-            labels=sorted(set(labels)),
-            external_references=[
+        indicator_kwargs: dict[str, Any] = {
+            "id": make_stix_id("indicator", "domain-name", domain),
+            "created_by_ref": source_identity.id,
+            "name": f"Galileo observed domain: {domain}",
+            "description": "Domain observed by Galileo Signals in spam-trap email telemetry.",
+            "pattern": f"[domain-name:value = '{domain}']",
+            "pattern_type": "stix",
+            "valid_from": first_seen,
+            "confidence": confidence_score(item.get("confidence")),
+            "labels": sorted(set(labels)),
+            "external_references": [
                 ExternalReference(
                     source_name="Galileo Signals observed domains feed",
                     url=feed_url,
                     external_id=domain,
                 )
             ],
-            object_marking_refs=object_marking_refs,
-            allow_custom=True,
+            "object_marking_refs": object_marking_refs,
+            "allow_custom": True,
             **custom_properties(item),
-        )
+        }
+        if last_seen is not None and last_seen > first_seen:
+            indicator_kwargs["valid_until"] = last_seen
+        indicator = Indicator(**indicator_kwargs)
         relationship = Relationship(
             id=make_stix_id("relationship", indicator.id, "based-on", observable.id),
             relationship_type="based-on",

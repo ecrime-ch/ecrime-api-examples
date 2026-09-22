@@ -67,6 +67,8 @@ Common:
 - `GALILEO_DOMAIN_AGE`: optional `24hours`, `7days`, or `30days`
 - `GALILEO_INCLUDE_CONTEXT`: defaults to `false`; set `true` to import sample
   email evidence objects
+- `GALILEO_USE_ROLLUP`: defaults to `true`; set `false` when the connector
+  needs live-index context fields before the Galileo rollup has refreshed
 - `GALILEO_EMAIL_DETAIL_BASE_URL`: defaults to
   `https://galileosignals.com/email`; use a `{id}` placeholder for custom URL
   patterns

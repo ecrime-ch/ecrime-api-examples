@@ -56,6 +56,7 @@ class ConnectorConfig:
     source: str
     domain_age: str
     include_context: bool
+    use_rollup: bool
     email_detail_base_url: str
     size: int
     interval: int
@@ -84,6 +85,7 @@ class ConnectorConfig:
             source=env("GALILEO_SOURCE", ""),
             domain_age=env("GALILEO_DOMAIN_AGE", ""),
             include_context=env_bool("GALILEO_INCLUDE_CONTEXT", False),
+            use_rollup=env_bool("GALILEO_USE_ROLLUP", True),
             email_detail_base_url=env("GALILEO_EMAIL_DETAIL_BASE_URL", "https://galileosignals.com/email"),
             size=env_int("GALILEO_SIZE", 500),
             interval=env_int("GALILEO_INTERVAL", 3600),
@@ -155,6 +157,8 @@ def build_feed_url(config: ConnectorConfig) -> str:
         params["domain_age"] = config.domain_age
     if config.include_context:
         params["include"] = "context"
+    if not config.use_rollup:
+        params["rollup"] = "false"
     separator = "&" if "?" in config.feed_url else "?"
     return f"{config.feed_url}{separator}{urlencode(params)}"
 

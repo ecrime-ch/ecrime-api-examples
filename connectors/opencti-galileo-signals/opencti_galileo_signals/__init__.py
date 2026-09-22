@@ -1,0 +1,1 @@
+"""Galileo Signals OpenCTI connector."""

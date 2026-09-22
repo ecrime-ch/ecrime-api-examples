@@ -1,0 +1,4 @@
+pycti>=6.0,<7
+requests>=2.31,<3
+stix2>=3.0,<4
+PyYAML>=6.0,<7

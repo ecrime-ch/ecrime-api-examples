@@ -1,0 +1,9 @@
+services:
+  galileo-opencti:
+    build: .
+    container_name: connector-galileo-signals
+    restart: unless-stopped
+    env_file:
+      - .env.example
+      - path: .env
+        required: false

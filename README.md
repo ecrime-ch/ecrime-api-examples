@@ -132,6 +132,13 @@ python3 scripts/generate_regional_monthly_report.py \
 Results are written below `output/<scope>/<month>/` unless `--output-dir` is
 specified.
 
+### Galileo Signals OpenCTI connector
+
+[`connectors/opencti-galileo-signals`](connectors/opencti-galileo-signals)
+contains an installable OpenCTI external-import connector for the Galileo
+Signals observed-domains feed. It ships with Docker Compose, native Python
+install instructions, dry-run mode, and STIX mapping tests.
+
 ## Security
 
 - Do not place API keys, SMTP passwords, or exported data in this repository.

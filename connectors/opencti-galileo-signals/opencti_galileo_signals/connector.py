@@ -15,10 +15,10 @@ from dataclasses import dataclass
 from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import requests
-from stix2 import Bundle, DomainName, ExternalReference, Identity, Indicator, Relationship, Report
+from stix2 import Bundle, DomainName, EmailMessage, ExternalReference, Identity, Indicator, Relationship, Report
 
 try:
     from pycti import OpenCTIConnectorHelper
@@ -56,6 +56,7 @@ class ConnectorConfig:
     source: str
     domain_age: str
     include_context: bool
+    email_detail_base_url: str
     size: int
     interval: int
     run_once: bool
@@ -83,6 +84,7 @@ class ConnectorConfig:
             source=env("GALILEO_SOURCE", ""),
             domain_age=env("GALILEO_DOMAIN_AGE", ""),
             include_context=env_bool("GALILEO_INCLUDE_CONTEXT", False),
+            email_detail_base_url=env("GALILEO_EMAIL_DETAIL_BASE_URL", "https://galileosignals.com/email"),
             size=env_int("GALILEO_SIZE", 500),
             interval=env_int("GALILEO_INTERVAL", 3600),
             run_once=env_bool("GALILEO_RUN_ONCE", False),
@@ -249,6 +251,30 @@ def split_list(value: object) -> list[str]:
     return [part.strip() for part in str(value).replace(";", ",").split(",") if part.strip()]
 
 
+def split_context_values(value: object, *, split_commas: bool = False) -> list[str]:
+    if value in (None, ""):
+        return []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, dict):
+        return [f"{key}:{val}" for key, val in value.items() if val not in (None, "")]
+    text = str(value).strip()
+    separators = ["|", ";"]
+    if split_commas:
+        separators.append(",")
+    for separator in separators:
+        text = text.replace(separator, "\n")
+    return [part.strip() for part in text.splitlines() if part.strip()]
+
+
+def email_detail_url(base_url: str, email_id: str) -> str:
+    base = base_url.strip() or "https://galileosignals.com/email"
+    encoded_id = quote(email_id, safe="")
+    if "{id}" in base:
+        return base.replace("{id}", encoded_id)
+    return f"{base.rstrip('/')}/{encoded_id}"
+
+
 def int_or_none(value: object) -> int | None:
     if value in (None, ""):
         return None
@@ -305,6 +331,7 @@ def stix_bundle_from_items(
     *,
     connector_name: str,
     feed_url: str,
+    email_detail_base_url: str = "https://galileosignals.com/email",
     tlp: str,
     create_report: bool,
 ) -> Bundle:
@@ -314,10 +341,20 @@ def stix_bundle_from_items(
         name=connector_name,
         identity_class="organization",
     )
-    objects: list[Any] = [source_identity]
+    objects: list[Any] = []
+    object_ids: set[str] = set()
     marking_id = TLP_MARKINGS.get(tlp)
     object_marking_refs = [marking_id] if marking_id else []
-    indicator_ids: list[str] = []
+    report_refs: list[str] = []
+
+    def append_once(stix_object: Any) -> None:
+        object_id = stix_object.id
+        if object_id in object_ids:
+            return
+        objects.append(stix_object)
+        object_ids.add(object_id)
+
+    append_once(source_identity)
 
     for item in items:
         domain = normalize_domain(
@@ -375,10 +412,57 @@ def stix_bundle_from_items(
             created_by_ref=source_identity.id,
             object_marking_refs=object_marking_refs,
         )
-        objects.extend([observable, indicator, relationship])
-        indicator_ids.append(indicator.id)
+        append_once(observable)
+        append_once(indicator)
+        append_once(relationship)
+        report_refs.append(indicator.id)
 
-    if create_report and indicator_ids:
+        sample_email_ids = split_context_values(item.get("sample_email_ids"), split_commas=True)[:5]
+        last_subjects = split_context_values(item.get("last_subjects"))[:3]
+        for index, email_id in enumerate(sample_email_ids):
+            email_kwargs: dict[str, Any] = {
+                "id": make_stix_id("email-message", "galileo", email_id),
+                "is_multipart": False,
+                "external_references": [
+                    ExternalReference(
+                        source_name="Galileo Signals email detail",
+                        url=email_detail_url(email_detail_base_url, email_id),
+                        external_id=email_id,
+                    )
+                ],
+                "object_marking_refs": object_marking_refs,
+                "allow_custom": True,
+                "x_galileo_email_id": email_id,
+                "x_galileo_observed_domain": domain,
+                "x_galileo_domain_sources": split_list(item.get("sources")),
+            }
+            if index < len(last_subjects):
+                email_kwargs["subject"] = last_subjects[index]
+            if last_subjects:
+                email_kwargs["x_galileo_recent_subjects"] = last_subjects
+            email_message = EmailMessage(**email_kwargs)
+            email_indicator_relationship = Relationship(
+                id=make_stix_id("relationship", indicator.id, "based-on", email_message.id),
+                relationship_type="based-on",
+                source_ref=indicator.id,
+                target_ref=email_message.id,
+                created_by_ref=source_identity.id,
+                object_marking_refs=object_marking_refs,
+            )
+            email_domain_relationship = Relationship(
+                id=make_stix_id("relationship", email_message.id, "related-to", observable.id),
+                relationship_type="related-to",
+                source_ref=email_message.id,
+                target_ref=observable.id,
+                created_by_ref=source_identity.id,
+                object_marking_refs=object_marking_refs,
+            )
+            append_once(email_message)
+            append_once(email_indicator_relationship)
+            append_once(email_domain_relationship)
+            report_refs.append(email_message.id)
+
+    if create_report and report_refs:
         objects.append(
             Report(
                 id=make_stix_id("report", connector_name, now),
@@ -387,7 +471,7 @@ def stix_bundle_from_items(
                 description="Automated Galileo Signals observed-domain import.",
                 published=now,
                 report_types=["threat-report"],
-                object_refs=indicator_ids,
+                object_refs=sorted(set(report_refs)),
                 labels=["galileo-signals", "observed-domains"],
                 external_references=[
                     ExternalReference(source_name="Galileo Signals observed domains feed", url=feed_url)
@@ -428,6 +512,7 @@ class GalileoOpenCTIConnector:
                 items,
                 connector_name=self.config.connector_name,
                 feed_url=build_feed_url(self.config),
+                email_detail_base_url=self.config.email_detail_base_url,
                 tlp=self.config.tlp,
                 create_report=self.config.create_reports,
             )

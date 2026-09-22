@@ -13,13 +13,18 @@ For each Galileo observed domain the connector creates:
 - `domain-name` cyber-observable
 - `indicator` with a STIX pattern such as `[domain-name:value = 'example.com']`
 - `relationship` from the indicator to the observable
+- optional `email-message` cyber-observables for Galileo sample email evidence
+- relationships from the domain indicator to sample email evidence, and from
+  sample email evidence back to the domain observable
 - one batch `report` containing the imported indicators
 - source identity `Galileo Signals`
 - configurable TLP marking
 
 Galileo fields such as `first_seen`, `last_seen`, `observations`,
 `source_counts`, `confidence`, `confidence_reasons`, registration metadata, and
-sample context are preserved as STIX custom properties.
+sample context are preserved as STIX custom properties. When
+`GALILEO_INCLUDE_CONTEXT=true`, sample email IDs become `email-message`
+observables with external references back to the Galileo email detail page.
 
 ## Install With Docker Compose
 
@@ -60,7 +65,11 @@ Common:
 - `GALILEO_CONFIDENCE`: defaults to `medium`; set empty for all confidence levels
 - `GALILEO_SOURCE`: optional `sender`, `extracted`, or `redirect`
 - `GALILEO_DOMAIN_AGE`: optional `24hours`, `7days`, or `30days`
-- `GALILEO_INCLUDE_CONTEXT`: defaults to `false`
+- `GALILEO_INCLUDE_CONTEXT`: defaults to `false`; set `true` to import sample
+  email evidence objects
+- `GALILEO_EMAIL_DETAIL_BASE_URL`: defaults to
+  `https://galileosignals.com/email`; use a `{id}` placeholder for custom URL
+  patterns
 - `GALILEO_SIZE`: defaults to `500`
 - `GALILEO_INTERVAL`: poll interval in seconds, default `3600`
 - `GALILEO_RUN_ONCE`: run one collection and exit, default `false`

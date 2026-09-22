@@ -73,6 +73,7 @@ Common:
   `https://galileosignals.com/email`; use a `{id}` placeholder for custom URL
   patterns
 - `GALILEO_SIZE`: defaults to `500`
+- `GALILEO_SCAN_SIZE`: optional live-index scan bound; `0` lets Galileo choose
 - `GALILEO_INTERVAL`: poll interval in seconds, default `3600`
 - `GALILEO_RUN_ONCE`: run one collection and exit, default `false`
 - `GALILEO_OPENCTI_DRY_RUN`: fetch and map only, default `false`

@@ -59,6 +59,7 @@ class ConnectorConfig:
     use_rollup: bool
     email_detail_base_url: str
     size: int
+    scan_size: int
     interval: int
     run_once: bool
     dry_run: bool
@@ -88,6 +89,7 @@ class ConnectorConfig:
             use_rollup=env_bool("GALILEO_USE_ROLLUP", True),
             email_detail_base_url=env("GALILEO_EMAIL_DETAIL_BASE_URL", "https://galileosignals.com/email"),
             size=env_int("GALILEO_SIZE", 500),
+            scan_size=env_int("GALILEO_SCAN_SIZE", 0, allow_zero=True),
             interval=env_int("GALILEO_INTERVAL", 3600),
             run_once=env_bool("GALILEO_RUN_ONCE", False),
             dry_run=env_bool("GALILEO_OPENCTI_DRY_RUN", False),
@@ -125,7 +127,7 @@ def env_bool(name: str, default: bool) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def env_int(name: str, default: int) -> int:
+def env_int(name: str, default: int, *, allow_zero: bool = False) -> int:
     value = os.getenv(name)
     if value is None or value == "":
         return default
@@ -133,7 +135,7 @@ def env_int(name: str, default: int) -> int:
         parsed = int(value)
     except ValueError as exc:
         raise SystemExit(f"{name} must be an integer") from exc
-    if parsed <= 0:
+    if parsed < 0 or (parsed == 0 and not allow_zero):
         raise SystemExit(f"{name} must be positive")
     return parsed
 
@@ -159,6 +161,8 @@ def build_feed_url(config: ConnectorConfig) -> str:
         params["include"] = "context"
     if not config.use_rollup:
         params["rollup"] = "false"
+    if config.scan_size > 0:
+        params["scan_size"] = str(config.scan_size)
     separator = "&" if "?" in config.feed_url else "?"
     return f"{config.feed_url}{separator}{urlencode(params)}"
 

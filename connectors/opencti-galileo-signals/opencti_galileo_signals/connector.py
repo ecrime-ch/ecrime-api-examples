@@ -18,7 +18,7 @@ from typing import Any
 from urllib.parse import quote, urlencode
 
 import requests
-from stix2 import Bundle, DomainName, EmailMessage, ExternalReference, Identity, Indicator, Relationship, Report
+from stix2 import Bundle, DomainName, EmailAddress, EmailMessage, ExternalReference, Identity, Indicator, Relationship, Report
 
 try:
     from pycti import OpenCTIConnectorHelper
@@ -275,6 +275,39 @@ def email_detail_url(base_url: str, email_id: str) -> str:
     return f"{base.rstrip('/')}/{encoded_id}"
 
 
+def normalize_email(value: object) -> str:
+    email = str(value or "").strip().lower().strip("<>")
+    if "@" not in email:
+        return ""
+    return email
+
+
+def sample_email_records(item: dict[str, Any]) -> list[dict[str, str]]:
+    structured = item.get("sample_emails")
+    records: list[dict[str, str]] = []
+    if isinstance(structured, list):
+        for entry in structured:
+            if not isinstance(entry, dict):
+                continue
+            email_id = str(entry.get("id") or entry.get("email_id") or "").strip()
+            from_email = normalize_email(entry.get("from_email") or entry.get("from"))
+            subject = str(entry.get("subject") or "").strip()
+            if not email_id or not from_email or not subject:
+                continue
+            records.append(
+                {
+                    "id": email_id,
+                    "from_email": from_email,
+                    "subject": subject,
+                    "date": str(entry.get("date") or "").strip(),
+                    "observed_at": str(entry.get("observed_at") or "").strip(),
+                }
+            )
+            if len(records) >= 5:
+                return records
+    return records
+
+
 def int_or_none(value: object) -> int | None:
     if value in (None, ""):
         return None
@@ -417,16 +450,27 @@ def stix_bundle_from_items(
         append_once(relationship)
         report_refs.append(indicator.id)
 
-        sample_email_ids = split_context_values(item.get("sample_email_ids"), split_commas=True)[:5]
-        last_subjects = split_context_values(item.get("last_subjects"))[:3]
-        for index, email_id in enumerate(sample_email_ids):
+        for sample in sample_email_records(item):
+            email_id = sample["id"]
+            detail_url = email_detail_url(email_detail_base_url, email_id)
+            from_address = EmailAddress(
+                id=make_stix_id("email-addr", sample["from_email"]),
+                value=sample["from_email"],
+                object_marking_refs=object_marking_refs,
+            )
             email_kwargs: dict[str, Any] = {
                 "id": make_stix_id("email-message", "galileo", email_id),
                 "is_multipart": False,
+                "from_ref": from_address.id,
+                "subject": sample["subject"],
+                "body": (
+                    f"Galileo Signals sample email evidence for observed domain {domain}.\n\n"
+                    f"Open the Galileo email detail: {detail_url}"
+                ),
                 "external_references": [
                     ExternalReference(
                         source_name="Galileo Signals email detail",
-                        url=email_detail_url(email_detail_base_url, email_id),
+                        url=detail_url,
                         external_id=email_id,
                     )
                 ],
@@ -436,10 +480,12 @@ def stix_bundle_from_items(
                 "x_galileo_observed_domain": domain,
                 "x_galileo_domain_sources": split_list(item.get("sources")),
             }
-            if index < len(last_subjects):
-                email_kwargs["subject"] = last_subjects[index]
-            if last_subjects:
-                email_kwargs["x_galileo_recent_subjects"] = last_subjects
+            email_date = parse_datetime(sample.get("date"))
+            observed_at = parse_datetime(sample.get("observed_at"))
+            if email_date is not None:
+                email_kwargs["date"] = email_date
+            if observed_at is not None:
+                email_kwargs["x_galileo_observed_at"] = observed_at
             email_message = EmailMessage(**email_kwargs)
             email_indicator_relationship = Relationship(
                 id=make_stix_id("relationship", indicator.id, "based-on", email_message.id),
@@ -457,6 +503,7 @@ def stix_bundle_from_items(
                 created_by_ref=source_identity.id,
                 object_marking_refs=object_marking_refs,
             )
+            append_once(from_address)
             append_once(email_message)
             append_once(email_indicator_relationship)
             append_once(email_domain_relationship)

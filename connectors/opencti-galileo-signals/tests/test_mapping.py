@@ -54,11 +54,20 @@ def test_stix_bundle_contains_email_evidence_when_context_is_present():
             "last_seen": "2026-09-22T13:00:00Z",
             "confidence": "medium",
             "sources": ["sender_domain", "extracted_domain", "redirect_chain_domain"],
-            "sample_email_ids": [
-                "20260922120000.ABC123.example",
-                "20260922123000.DEF456.example",
+            "sample_emails": [
+                {
+                    "id": "20260922120000.ABC123.example",
+                    "from_email": "alerts@hyundai.myvehicle-email.com",
+                    "subject": "Hyundai service notice",
+                    "date": "2026-09-22T12:00:00Z",
+                },
+                {
+                    "id": "20260922123000.DEF456.example",
+                    "from_email": "alerts@hyundai.myvehicle-email.com",
+                    "subject": "Vehicle account update",
+                    "observed_at": "2026-09-22T12:30:00Z",
+                },
             ],
-            "last_subjects": ["Hyundai service notice", "Vehicle account update"],
         }
     ]
 
@@ -73,9 +82,13 @@ def test_stix_bundle_contains_email_evidence_when_context_is_present():
 
     objects = json.loads(bundle.serialize())["objects"]
     email_messages = [obj for obj in objects if obj["type"] == "email-message"]
+    email_addresses = [obj for obj in objects if obj["type"] == "email-addr"]
     assert len(email_messages) == 2
+    assert len(email_addresses) == 1
     assert email_messages[0]["x_galileo_email_id"] == "20260922120000.ABC123.example"
     assert email_messages[0]["subject"] == "Hyundai service notice"
+    assert email_messages[0]["from_ref"] == email_addresses[0]["id"]
+    assert "Galileo Signals sample email evidence" in email_messages[0]["body"]
     assert email_messages[0]["external_references"][0]["url"].endswith(
         "/20260922120000.ABC123.example"
     )

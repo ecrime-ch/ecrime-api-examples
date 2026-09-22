@@ -92,17 +92,19 @@ def test_stix_bundle_contains_email_evidence_when_context_is_present():
     assert email_messages[0]["external_references"][0]["url"].endswith(
         "/20260922120000.ABC123.example"
     )
+    indicators = [obj for obj in objects if obj["type"] == "indicator"]
+    indicator_reference_urls = {
+        reference["url"]
+        for reference in indicators[0]["external_references"]
+        if reference["source_name"] == "Galileo Signals email detail"
+    }
+    assert "https://galileosignals.com/email/20260922120000.ABC123.example" in indicator_reference_urls
+    assert "https://galileosignals.com/email/20260922123000.DEF456.example" in indicator_reference_urls
 
     relationships = [obj for obj in objects if obj["type"] == "relationship"]
     email_ids = {email["id"] for email in email_messages}
-    assert any(
-        rel["relationship_type"] == "based-on" and rel["target_ref"] in email_ids
-        for rel in relationships
-    )
-    assert any(
-        rel["relationship_type"] == "related-to" and rel["source_ref"] in email_ids
-        for rel in relationships
-    )
+    assert all(rel["source_ref"] not in email_ids for rel in relationships)
+    assert all(rel["target_ref"] not in email_ids for rel in relationships)
 
 
 def test_sparse_row_still_maps_to_valid_stix():

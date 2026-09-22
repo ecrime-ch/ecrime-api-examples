@@ -14,8 +14,8 @@ For each Galileo observed domain the connector creates:
 - `indicator` with a STIX pattern such as `[domain-name:value = 'example.com']`
 - `relationship` from the indicator to the observable
 - optional `email-message` cyber-observables for Galileo sample email evidence
-- relationships from the domain indicator to sample email evidence, and from
-  sample email evidence back to the domain observable
+- `email-addr` cyber-observables for sample sender addresses
+- external references from the domain indicator to Galileo email-detail views
 - one batch `report` containing the imported indicators
 - source identity `Galileo Signals`
 - configurable TLP marking
@@ -25,6 +25,8 @@ Galileo fields such as `first_seen`, `last_seen`, `observations`,
 sample context are preserved as STIX custom properties. When
 `GALILEO_INCLUDE_CONTEXT=true`, sample email IDs become `email-message`
 observables with external references back to the Galileo email detail page.
+The domain indicator also receives those email-detail external references so an
+analyst can pivot from the domain directly to Galileo's original evidence.
 
 ## Install With Docker Compose
 

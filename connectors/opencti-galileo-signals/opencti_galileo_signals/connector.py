@@ -413,6 +413,22 @@ def stix_bundle_from_items(
         labels.extend(f"galileo:{value.lower()}" for value in split_list(item.get("sources")))
         if item.get("confidence"):
             labels.append(f"confidence:{str(item['confidence']).strip().lower()}")
+        email_samples = sample_email_records(item)
+        external_references = [
+            ExternalReference(
+                source_name="Galileo Signals observed domains feed",
+                url=feed_url,
+                external_id=domain,
+            )
+        ]
+        external_references.extend(
+            ExternalReference(
+                source_name="Galileo Signals email detail",
+                url=email_detail_url(email_detail_base_url, sample["id"]),
+                external_id=sample["id"],
+            )
+            for sample in email_samples
+        )
 
         observable = DomainName(
             id=make_stix_id("domain-name", domain),
@@ -431,13 +447,7 @@ def stix_bundle_from_items(
             "valid_from": first_seen,
             "confidence": confidence_score(item.get("confidence")),
             "labels": sorted(set(labels)),
-            "external_references": [
-                ExternalReference(
-                    source_name="Galileo Signals observed domains feed",
-                    url=feed_url,
-                    external_id=domain,
-                )
-            ],
+            "external_references": external_references,
             "object_marking_refs": object_marking_refs,
             "allow_custom": True,
             **custom_properties(item),
@@ -458,7 +468,7 @@ def stix_bundle_from_items(
         append_once(relationship)
         report_refs.append(indicator.id)
 
-        for sample in sample_email_records(item):
+        for sample in email_samples:
             email_id = sample["id"]
             detail_url = email_detail_url(email_detail_base_url, email_id)
             from_address = EmailAddress(
@@ -495,27 +505,8 @@ def stix_bundle_from_items(
             if observed_at is not None:
                 email_kwargs["x_galileo_observed_at"] = observed_at
             email_message = EmailMessage(**email_kwargs)
-            email_indicator_relationship = Relationship(
-                id=make_stix_id("relationship", indicator.id, "based-on", email_message.id),
-                relationship_type="based-on",
-                source_ref=indicator.id,
-                target_ref=email_message.id,
-                created_by_ref=source_identity.id,
-                object_marking_refs=object_marking_refs,
-            )
-            email_domain_relationship = Relationship(
-                id=make_stix_id("relationship", email_message.id, "related-to", observable.id),
-                relationship_type="related-to",
-                source_ref=email_message.id,
-                target_ref=observable.id,
-                created_by_ref=source_identity.id,
-                object_marking_refs=object_marking_refs,
-            )
             append_once(from_address)
             append_once(email_message)
-            append_once(email_indicator_relationship)
-            append_once(email_domain_relationship)
-            report_refs.append(email_message.id)
 
     if create_report and report_refs:
         objects.append(
